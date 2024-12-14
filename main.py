@@ -28,11 +28,11 @@ SCROLL_THRESH = 200
 ROWS = 16
 COLS = 150
 TILE_SIZE = SCREEN_HEIGHT // ROWS
-TILE_TYPES = 21
+TILE_TYPES = 22
 MAX_LEVELS = 3
 screen_scroll = 0
 bg_scroll = 0
-level = 1
+level = 0
 start_game = False
 start_intro = False
 
@@ -219,7 +219,7 @@ class Soldier(pygame.sprite.Sprite):
 			if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
 				dx = 0
 				# if the ai has hit a wall then make it turn around
-				if self.char_type == 'enemy':
+				if self.char_type == 'enemy' or self.char_type == 'enemy2':
 					self.direction *= -1
 					self.move_counter = 0
 			# check for collision in the y direction
@@ -385,6 +385,9 @@ class World():
 					elif tile == 20:	# create exit
 						exit = Exit(img, x * TILE_SIZE, y * TILE_SIZE)
 						exit_group.add(exit)
+					elif tile == 21:	# create enemy2
+						enemy2 = Soldier('enemy2', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)
+						enemy_group.add(enemy2)
 
 		return player, health_bar
 
