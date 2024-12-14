@@ -182,12 +182,11 @@ while run:
 	#check that the coordinates are within the tile area
 	if pos[0] < SCREEN_WIDTH and pos[1] < SCREEN_HEIGHT:
 		#update tile value
-		if pygame.mouse.get_pressed()[0] == 1:
+		if pygame.mouse.get_pressed()[0]:
 			if world_data[y][x] != current_tile:
 				world_data[y][x] = current_tile
-		if pygame.mouse.get_pressed()[2] == 1:
+		if pygame.mouse.get_pressed()[2]:
 			world_data[y][x] = -1
-
 
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:

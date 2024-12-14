@@ -309,6 +309,33 @@ class Soldier(pygame.sprite.Sprite):
 		# scroll
 		self.rect.x += screen_scroll
 
+	def ai2(self):
+		if self.alive and player.alive:
+			# random stop
+			if self.idling == False and random.randint(1, 200) == 1:
+				self.update_action(0)	# 0: idle
+				self.idling = True
+				self.idling_counter = 50
+			else:
+				if self.idling == False:
+					if self.direction == 1:
+						ai_moving_right = True
+					else:
+						ai_moving_right = False
+					ai_moving_left = not ai_moving_right
+					self.move(ai_moving_left, ai_moving_right)
+					self.update_action(1)# 1: run
+					self.move_counter += 1
+					if self.move_counter > TILE_SIZE * 2:  # running 2 tiles back and forth
+						self.direction *= -1
+						self.move_counter *= -1
+				else:
+					self.idling_counter -= 1
+					if self.idling_counter <= 0:
+						self.idling = False
+		# scroll
+		self.rect.x += screen_scroll
+
 	def update_animation(self):
 		# update animation
 		ANIMATION_COOLDOWN = 100
@@ -615,6 +642,7 @@ restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50,
 
 # create sprite groups
 enemy_group = pygame.sprite.Group()
+enemy2_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 grenade_group = pygame.sprite.Group()
 explosion_group = pygame.sprite.Group()
@@ -667,6 +695,10 @@ while run:		# Game loop
 		player.draw()
 		for enemy in enemy_group:
 			enemy.ai()
+			enemy.update()
+			enemy.draw()
+		for enemy2 in enemy2_group:
+			enemy.ai2()
 			enemy.update()
 			enemy.draw()
 		# update and draw groups
