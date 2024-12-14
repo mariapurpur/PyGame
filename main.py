@@ -32,7 +32,7 @@ TILE_TYPES = 22
 MAX_LEVELS = 3
 screen_scroll = 0
 bg_scroll = 0
-level = 0
+level = 1
 start_game = False
 start_intro = False
 
@@ -273,7 +273,7 @@ class Soldier(pygame.sprite.Sprite):
 			bullet_group.add(bullet)
 			# reduce ammo
 			self.ammo -= 1
-			shot_fx.play() # play shooting sound
+			shot_fx.play()  # play shooting sound
 
 	def ai(self):
 		if self.alive and player.alive:
@@ -413,7 +413,7 @@ class World():
 						exit = Exit(img, x * TILE_SIZE, y * TILE_SIZE)
 						exit_group.add(exit)
 					elif tile == 21:	# create enemy2
-						enemy2 = Soldier('enemy2', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)
+						enemy2 = Soldier('enemy2', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 0, 0)
 						enemy_group.add(enemy2)
 
 		return player, health_bar
