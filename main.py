@@ -9,7 +9,7 @@ mixer.init()
 pygame.init()
 
 SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.5)
+SCREEN_HEIGHT = 810
 
 # Create a display surface object of specific dimension
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -44,14 +44,31 @@ shoot = False
 grenade = False
 grenade_thrown = False
 
-# load music and sounds
+
 pygame.mixer.music.load('audio/music2.mp3')
-pygame.mixer.music.set_volume(0.2) 
-pygame.mixer.music.play(-1, 0.0, 5000)  # (loops, start, fade_ms) # loop = -1 => infinite loop; start = 0.0 => time from which the music starts playing; fade_ms is an optional integer argument, which is 0 by default, which denotes the period of time (in milliseconds) over which the music will fade up from volume level 0.0 to full volume 
-jump_fx = pygame.mixer.Sound('audio/jump.wav')
-jump_fx.set_volume(0.05)
-shot_fx = pygame.mixer.Sound('audio/shot.wav')
-shot_fx.set_volume(0.05)
+pygame.mixer.music.set_volume(1.5)
+pygame.mixer.music.play(-1, 0.0, 5000)
+  # (loops, start, fade_ms) # loop = -1 => infinite loop; start = 0.0 => time from which the music starts playing; fade_ms is an optional integer argument, which is 0 by default, which denotes the period of time (in milliseconds) over which the music will fade up from volume level 0.0 to full volume
+jump_fx = pygame.mixer.Sound('audio/jump.mp3')
+jump_fx.set_volume(0.9)
+shot_fx = pygame.mixer.Sound('audio/shot.mp3')
+shot_fx.set_volume(0.9)
+
+hurt_fx = pygame.mixer.Sound('audio/hurt.mp3')
+hurt_fx.set_volume(0.9)
+
+bow_fx = pygame.mixer.Sound('audio/bow.mp3')
+bow_fx.set_volume(0.5)
+
+menu_fx = pygame.mixer.Sound('audio/pause game.mp3')
+menu_fx.set_volume(0.5)
+
+bg_fx = pygame.mixer.Sound('audio/music2.mp3')
+bg_fx.set_volume(0.5)
+
+steps_fx = pygame.mixer.Sound('audio/steps.mp3')
+steps_fx.set_volume(0.9)
+
 grenade_fx = pygame.mixer.Sound('audio/grenade.wav')
 grenade_fx.set_volume(0.05)
 
@@ -76,12 +93,15 @@ for x in range(TILE_TYPES):
 	img_list.append(img)
 # bullet
 bullet_img = pygame.image.load('img/icons/bullet.png').convert_alpha()
+arrow_img = pygame.image.load('img/icons/arrow.png').convert_alpha()
 # grenade
 grenade_img = pygame.image.load('img/icons/grenade.png').convert_alpha()
 # pick up boxes
 health_box_img = pygame.image.load('img/icons/health_box.png').convert_alpha()
 ammo_box_img = pygame.image.load('img/icons/ammo_box.png').convert_alpha()
 grenade_box_img = pygame.image.load('img/icons/grenade_box.png').convert_alpha()
+temple_bg = pygame.image.load('img/Background/abandoned temple.png').convert_alpha()
+menu_bg = pygame.image.load('img/Background/menu.png').convert_alpha()
 item_boxes = {
 	'Health'	: health_box_img,
 	'Ammo'		: ammo_box_img,
@@ -90,9 +110,9 @@ item_boxes = {
 
 # define colours
 BG = (144, 201, 120)
-RED = (255, 0, 0)
+RED = (99, 0, 0)
 WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
+GREEN = (0, 99, 0)
 BLACK = (0, 0, 0)
 PINK = (235, 65, 54)
 
@@ -103,15 +123,16 @@ def draw_text(text, font, text_col, x, y):
 	img = font.render(text, True, text_col)		# create a new image (surface) with the specified text rendered on it
 	screen.blit(img, (x, y))	# draws a source Surface onto this Surface
 
-def draw_bg():
+def draw_bg(start=False):
 	screen.fill(BG)
 	width = sky_img.get_width()
 	for x in range(5):
 		# during running sky speed < mountain < pine1 < pine2  => so it looks like 3D
-		screen.blit(sky_img, ((x * width) - bg_scroll * 0.5, 0))
-		screen.blit(mountain_img, ((x * width) - bg_scroll * 0.6, SCREEN_HEIGHT - mountain_img.get_height() - 300))
-		screen.blit(pine1_img, ((x * width) - bg_scroll * 0.7, SCREEN_HEIGHT - pine1_img.get_height() - 150))
-		screen.blit(pine2_img, ((x * width) - bg_scroll * 0.8, SCREEN_HEIGHT - pine2_img.get_height()))
+		if (start):
+			screen.blit(menu_bg, ((x * width) - bg_scroll * 0.5, 0))
+		else:
+			screen.blit(temple_bg, ((x * width) - bg_scroll * 0.5, 0))
+
 
 # function to reset level
 def reset_level():
@@ -134,10 +155,12 @@ def reset_level():
 class Soldier(pygame.sprite.Sprite):
 	def __init__(self, char_type, x, y, scale, speed, ammo, grenades):
 		pygame.sprite.Sprite.__init__(self)  # A sprite is a two dimensional image that is part of the larger graphical scene. 
+		self.damage_cooldown = 0
 		self.alive = True
 		self.char_type = char_type
 		self.speed = speed
 		self.ammo = ammo
+		self.coins = 0
 		self.start_ammo = ammo
 		self.shoot_cooldown = 0
 		self.grenades = grenades
@@ -150,6 +173,8 @@ class Soldier(pygame.sprite.Sprite):
 		self.flip = False
 		self.animation_list = []
 		self.frame_index = 0
+		self.shooting = False
+		self.visible = True
 		self.action = 0
 		self.update_time = pygame.time.get_ticks()   # Return the number of milliseconds since pygame.init() was called.
 		# ai specific variables
@@ -157,9 +182,11 @@ class Soldier(pygame.sprite.Sprite):
 		self.vision = pygame.Rect(0, 0, 150, 20)   # pygame object for storing rectangular coordinates => Rect(left, top, width, height) 
 		self.idling = False
 		self.idling_counter = 0
+		self._invincible_timer = 0
+		self._invincible_time = 3
 		
 		# load all images for the players
-		animation_types = ['Idle', 'Run', 'Jump', 'Death']
+		animation_types = ['Idle', 'Run', 'Jump', 'Death', 'Attack']
 		for animation in animation_types:
 			# reset temporary list of images
 			temp_list = []
@@ -185,6 +212,28 @@ class Soldier(pygame.sprite.Sprite):
 		# update cooldown
 		if self.shoot_cooldown > 0:
 			self.shoot_cooldown -= 1
+		if self.char_type == "player":
+			if self.damage_cooldown > 0:
+				self.damage_cooldown -= 1
+				if self.damage_cooldown % 2 != 0:
+					self.visible = False
+				else:
+					self.visible = True
+			else:
+				self.visible = True
+				self.checkHurt(enemy2_group)
+
+
+	def checkHurt(self, enemy_group):
+		if self.char_type == "player":
+			for enemy in enemy_group:
+				# Проверяем, жив ли враг
+				if enemy.alive and pygame.sprite.collide_rect(self, enemy):
+					self.health -= 5
+					self._invincible_timer = self._invincible_time
+					self.damage_cooldown = 100
+					hurt_fx.play()
+
 
 	def move(self, moving_left, moving_right):
 		# reset movement variables
@@ -192,6 +241,8 @@ class Soldier(pygame.sprite.Sprite):
 		dx = 0
 		dy = 0
 		# assign movement variables if moving left or right
+		if (self.char_type == 'plater'):
+			steps_fx.play()
 		if moving_left:
 			dx = -self.speed
 			self.flip = True
@@ -216,7 +267,7 @@ class Soldier(pygame.sprite.Sprite):
 		# check for collision
 		for tile in world.obstacle_list:
 			# check collision in the x direction
-			if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
+			if tile[1].colliderect(self.rect.x + dx, self.rect.y, 50, 50):
 				dx = 0
 				# if the ai has hit a wall then make it turn around
 				if self.char_type == 'enemy' or self.char_type == 'enemy2':
@@ -244,7 +295,7 @@ class Soldier(pygame.sprite.Sprite):
 			level_complete = True
 
 		# check if fallen off the map
-		if self.rect.bottom > SCREEN_HEIGHT:
+		if self.rect.bottom > SCREEN_HEIGHT - 54:
 			self.health = 0
 
 		# check if going off the edges of the screen
@@ -266,27 +317,46 @@ class Soldier(pygame.sprite.Sprite):
 		return screen_scroll, level_complete
 
 	def shoot(self):
+		self.shooting = True
 		if self.shoot_cooldown == 0 and self.ammo > 0:
-			self.shoot_cooldown = 20
+			if self.char_type == 'player':
+				self.shoot_cooldown = 20
+			else:
+				self.shoot_cooldown = 60
+				self.direction = 1 if player.rect.centerx > self.rect.centerx else -1
+
 			# centerx is the center of the Rect along the x axis and centery is the center of the Rect along the y axis.
-			bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction)
+			bullet = Bullet(self.char_type == 'player', self.rect.centerx + (0.75 * self.rect.size[0] * self.direction),
+							self.rect.centery, self.direction)
 			bullet_group.add(bullet)
 			# reduce ammo
+			# Допустим, для врага направление зависит от положения игрока
+
 			self.ammo -= 1
-			shot_fx.play()  # play shooting sound
+			if self.char_type == 'player':
+				shot_fx.play()  # play shooting sound
+			else:
+				bow_fx.play()
+			self.shooting = False
 
 	def ai(self):
 		if self.alive and player.alive:
 			if self.idling == False and random.randint(1, 200) == 1:
-				self.update_action(0)	# 0: idle
+				self.update_action(0)  # 0: idle
 				self.idling = True
 				self.idling_counter = 50
-			# check if the ai in near the player
-			if self.vision.colliderect(player.rect):
-				# stop running and face the player
-				self.update_action(0)	# 0: idle
-				# shoot
-				self.shoot()
+
+			# проверяем, находится ли игрок в зоне видимости врага
+			if self.vision.colliderect(player.rect) and self.ammo > 0:
+				# враг должен повернуться в сторону игрока
+				if player.rect.centerx < self.rect.centerx:
+					self.flip = True
+					self.direction = -1
+				else:
+					self.flip = False
+					self.direction = 1
+				self.update_action(4)  # 4: attack
+				self.shoot()  # враг стреляет
 			else:
 				if self.idling == False:
 					if self.direction == 1:
@@ -295,9 +365,8 @@ class Soldier(pygame.sprite.Sprite):
 						ai_moving_right = False
 					ai_moving_left = not ai_moving_right
 					self.move(ai_moving_left, ai_moving_right)
-					self.update_action(1)# 1: run
+					self.update_action(1)  # 1: run
 					self.move_counter += 1
-					# update ai vision as the enemy moves
 					self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
 					if self.move_counter > TILE_SIZE:
 						self.direction *= -1
@@ -306,16 +375,16 @@ class Soldier(pygame.sprite.Sprite):
 					self.idling_counter -= 1
 					if self.idling_counter <= 0:
 						self.idling = False
-		# scroll
+		# прокрутка экрана
 		self.rect.x += screen_scroll
 
 	def ai2(self):
 		if self.alive and player.alive:
-			# random stop
 			if self.idling == False and random.randint(1, 200) == 1:
 				self.update_action(0)	# 0: idle
 				self.idling = True
 				self.idling_counter = 50
+
 			else:
 				if self.idling == False:
 					if self.direction == 1:
@@ -326,7 +395,7 @@ class Soldier(pygame.sprite.Sprite):
 					self.move(ai_moving_left, ai_moving_right)
 					self.update_action(1)# 1: run
 					self.move_counter += 1
-					if self.move_counter > TILE_SIZE * 2:  # running 2 tiles back and forth
+					if self.move_counter > TILE_SIZE/2:  # running 2 tiles back and forth
 						self.direction *= -1
 						self.move_counter *= -1
 				else:
@@ -359,6 +428,12 @@ class Soldier(pygame.sprite.Sprite):
 			# update the animation settings
 			self.frame_index = 0
 			self.update_time = pygame.time.get_ticks()
+		# изменяем изображение в зависимости от направления
+		if new_action == 4:  # если действие - атака
+			if self.direction == -1:  # если враг смотрит влево
+				self.image = pygame.transform.flip(self.image, False, False)
+			else:  # если враг смотрит вправо
+				self.image = pygame.transform.flip(self.image, True, False)
 
 	def check_alive(self):
 		if self.health <= 0:
@@ -369,7 +444,8 @@ class Soldier(pygame.sprite.Sprite):
 
 	def draw(self):
 		# pygame.transform.flip(Surface, xbool, ybool) will flip the image
-		screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+		if self.visible:
+			screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
 class World():
 	def __init__(self):
@@ -384,7 +460,7 @@ class World():
 					img = img_list[tile]
 					img_rect = img.get_rect()
 					img_rect.x = x * TILE_SIZE
-					img_rect.y = y * TILE_SIZE
+					img_rect.y = y * (TILE_SIZE)
 					tile_data = (img, img_rect)
 					if tile >= 0 and tile <= 8:
 						self.obstacle_list.append(tile_data)
@@ -414,7 +490,7 @@ class World():
 						exit_group.add(exit)
 					elif tile == 21:	# create enemy2
 						enemy2 = Soldier('enemy2', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 0, 0)
-						enemy_group.add(enemy2)
+						enemy2_group.add(enemy2)
 
 		return player, health_bar
 
@@ -495,10 +571,13 @@ class HealthBar():
 		pygame.draw.rect(screen, GREEN, (self.x, self.y, 150 * ratio, 20))
 
 class Bullet(pygame.sprite.Sprite):
-	def __init__(self, x, y, direction):
+	def __init__(self, is_enemy, x, y, direction):
 		pygame.sprite.Sprite.__init__(self)
 		self.speed = 10
-		self.image = bullet_img
+		if is_enemy:
+			self.image = bullet_img
+		else:
+			self.image = arrow_img
 		self.rect = self.image.get_rect()
 		self.rect.center = (x, y)
 		self.direction = direction
@@ -516,12 +595,24 @@ class Bullet(pygame.sprite.Sprite):
 		# check collision with characters
 		if pygame.sprite.spritecollide(player, bullet_group, False):
 			if player.alive:
+				player._invincible_timer = player._invincible_time
+				player.damage_cooldown = 100
 				player.health -= 5
+				hurt_fx.play()
 				self.kill()
 		for enemy in enemy_group:
 			if pygame.sprite.spritecollide(enemy, bullet_group, False):
 				if enemy.alive:
 					enemy.health -= 25
+					if (enemy.health <= 0):
+						player.coins += 5
+					self.kill()
+		for enemy2 in enemy2_group:
+			if pygame.sprite.spritecollide(enemy2, bullet_group, False):
+				if enemy2.alive:
+					enemy2.health -= 25
+					if (enemy2.health <= 0):
+						player.coins += 5
 					self.kill()
 
 class Grenade(pygame.sprite.Sprite):
@@ -633,7 +724,7 @@ class ScreenFade():
 
 # create screen fades
 intro_fade = ScreenFade(1, BLACK, 4)
-death_fade = ScreenFade(2, PINK, 4)
+death_fade = ScreenFade(2, RED, 4)
 
 # create buttons
 start_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150, start_img, 1)
@@ -669,7 +760,7 @@ while run:		# Game loop
 	clock.tick(FPS)
 	if start_game == False:
 		# draw menu
-		screen.fill(BG)
+		draw_bg(True)
 		# add buttons
 		if start_button.draw(screen):
 			start_game = True
@@ -684,13 +775,16 @@ while run:		# Game loop
 		# show player health
 		health_bar.draw(player.health)
 		# show ammo
-		draw_text('AMMO: ', font, WHITE, 10, 35)
+		draw_text('Пули: ', font, WHITE, 10, 35)
 		for x in range(player.ammo):
 			screen.blit(bullet_img, (90 + (x * 10), 40))
 		# show grenades
-		draw_text('GRENADES: ', font, WHITE, 10, 60)
+		draw_text('Колбы: ', font, WHITE, 10, 60)
 		for x in range(player.grenades):
 			screen.blit(grenade_img, (135 + (x * 15), 60))
+
+		draw_text(f'Счёт: {player.coins}', font, WHITE, 10, 85)
+
 		player.update()
 		player.draw()
 		for enemy in enemy_group:
@@ -698,9 +792,9 @@ while run:		# Game loop
 			enemy.update()
 			enemy.draw()
 		for enemy2 in enemy2_group:
-			enemy.ai2()
-			enemy.update()
-			enemy.draw()
+			enemy2.ai2()
+			enemy2.update()
+			enemy2.draw()
 		# update and draw groups
 		bullet_group.update()
 		grenade_group.update()
@@ -758,7 +852,7 @@ while run:		# Game loop
 							for y, tile in enumerate(row):
 								world_data[x][y] = int(tile)
 					world = World()
-					player, health_bar = world.process_data(world_data)	
+					player, health_bar = world.process_data(world_data)
 		else:
 			screen_scroll = 0
 			if death_fade.fade():
@@ -782,9 +876,11 @@ while run:		# Game loop
 			run = False
 		# keyboard presses
 		if event.type == pygame.KEYDOWN:
-			if event.key == pygame.K_a or event.key == pygame.K_LEFT:	# key "A" or "Left arror" => move left
+			if event.key == pygame.K_a or event.key == pygame.K_LEFT:
+				steps_fx.play()# key "A" or "Left arror" => move left
 				moving_left = True
 			if event.key == pygame.K_d or event.key == pygame.K_RIGHT:	# key "D" or "Right arror" => move right
+				steps_fx.play()
 				moving_right = True
 			if event.key == pygame.K_SPACE:	# key " " => shoot
 				shoot = True
